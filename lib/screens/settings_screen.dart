@@ -27,6 +27,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _userHeightController;
   late TextEditingController _userAgeController;
   late String _selectedGender;
+  double _activityLevel = 1.2;
+
+  int _calculatedBmr = 0;
+  int _calculatedTdee = 0;
+
+  final List<Map<String, dynamic>> _activityLevels = [
+    {'label': '주로 앉아서 생활 (사무직, 재택)', 'value': 1.2},
+    {'label': '가벼운 활동 (산책, 스트레칭)', 'value': 1.375},
+    {'label': '규칙적인 운동 (헬스, 조깅 등)', 'value': 1.55},
+    {'label': '고강도 운동 또는 육체 노동', 'value': 1.725},
+  ];
 
   @override
   void initState() {
@@ -35,7 +46,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _currentWeightController = TextEditingController(text: widget.initialCurrentWeight.toString());
     _userHeightController = TextEditingController(text: widget.initialUserHeight.toString());
     _userAgeController = TextEditingController(text: widget.initialUserAge.toString());
-    _selectedGender = widget.initialUserGender; 
+    _selectedGender = widget.initialUserGender;
+
+    _currentWeightController.addListener(_recalculate);
+    _userHeightController.addListener(_recalculate);
+    _userAgeController.addListener(_recalculate);
+
+    _recalculate();
+    _loadActivityLevel();
+  }
+
+  Future<void> _loadActivityLevel() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble('activityLevel') ?? 1.2;
+    setState(() {
+      _activityLevel = saved;
+      _recalculate();
+    });
   }
 
   @override
@@ -47,6 +74,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  void _recalculate() {
+    final weight = double.tryParse(_currentWeightController.text) ?? 0;
+    final height = double.tryParse(_userHeightController.text) ?? 0;
+    final age = int.tryParse(_userAgeController.text) ?? 0;
+
+    if (weight <= 0 || height <= 0 || age <= 0) return;
+
+    double bmr;
+    if (_selectedGender == '남성') {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    } else {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    }
+
+    setState(() {
+      _calculatedBmr = bmr.round();
+      _calculatedTdee = (bmr * _activityLevel).round();
+    });
+  }
+
+  void _applyCalculated() {
+    _targetKcalController.text = _calculatedTdee.toString();
+  }
+
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('targetKcal', int.tryParse(_targetKcalController.text) ?? widget.initialTargetKcal);
@@ -54,7 +105,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setDouble('userHeight', double.tryParse(_userHeightController.text) ?? widget.initialUserHeight);
     await prefs.setInt('userAge', int.tryParse(_userAgeController.text) ?? widget.initialUserAge);
     await prefs.setString('userGender', _selectedGender);
-    Navigator.of(context).pop();
+    await prefs.setDouble('activityLevel', _activityLevel);
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -65,40 +117,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _targetKcalController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '목표 칼로리 (kcal)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.flash_on),
-              ),
-            ),
-            const SizedBox(height: 16),
+            // 신체 정보
+            const Text('신체 정보', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 10),
             TextField(
               controller: _currentWeightController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: '현재 체중 (kg)',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.monitor_weight),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextField(
               controller: _userHeightController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: '키 (cm)',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.height),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextField(
               controller: _userAgeController,
               keyboardType: TextInputType.number,
@@ -108,27 +154,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 prefixIcon: Icon(Icons.cake),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: [
-                const Text('성별: ', style: TextStyle(fontSize: 16)),
-                DropdownButton<String>(
-                  value: _selectedGender,
-                  onChanged: (String? newValue) {
+                const Icon(Icons.person, color: Colors.grey),
+                const SizedBox(width: 12),
+                const Text('성별', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 16),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: '남성', label: Text('남성')),
+                    ButtonSegment(value: '여성', label: Text('여성')),
+                  ],
+                  selected: {_selectedGender},
+                  onSelectionChanged: (val) {
                     setState(() {
-                      _selectedGender = newValue!;
+                      _selectedGender = val.first;
+                      _recalculate();
                     });
                   },
-                  items: <String>['남성', '여성']
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+                  style: SegmentedButton.styleFrom(
+                    selectedBackgroundColor: Colors.green,
+                    selectedForegroundColor: Colors.white,
+                    foregroundColor: Colors.green,
+                  ),
                 ),
               ],
             ),
+
+            const SizedBox(height: 24),
+
+            // 기초대사량 계산 결과
+            const Text('기초대사량 (BMR) 계산', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('기초대사량 (BMR)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text(
+                        _calculatedBmr > 0 ? '$_calculatedBmr kcal' : '-',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('활동 수준', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<double>(
+                    initialValue: _activityLevel,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      isDense: true,
+                    ),
+                    items: _activityLevels.map((item) {
+                      return DropdownMenuItem<double>(
+                        value: item['value'] as double,
+                        child: Text(item['label'] as String, style: const TextStyle(fontSize: 14)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _activityLevel = val!;
+                        _recalculate();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('권장 섭취 칼로리 (TDEE)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text(
+                        _calculatedTdee > 0 ? '$_calculatedTdee kcal' : '-',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.green,
+                  side: const BorderSide(color: Colors.green, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _calculatedTdee > 0 ? _applyCalculated : null,
+                icon: const Icon(Icons.auto_fix_high),
+                label: Text(
+                  _calculatedTdee > 0 ? '권장 칼로리 자동 설정 ($_calculatedTdee kcal)' : '신체 정보를 입력하면 자동 계산됩니다',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 목표 칼로리 (직접 수정 가능)
+            const Text('목표 칼로리', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _targetKcalController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '목표 칼로리 (kcal)',
+                helperText: '위 계산값을 적용하거나 직접 입력하세요',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.flash_on, color: Colors.green),
+              ),
+            ),
+
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,

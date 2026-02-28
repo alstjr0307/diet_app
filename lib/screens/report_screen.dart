@@ -23,12 +23,23 @@ class _ReportScreenState extends State<ReportScreen> {
   List<FlSpot> _spots = [];
   List<String> _graphDateKeys = []; // 그래프 x-axis labels
   List<String> _last7DaysKeysForList = []; // 하단 리스트를 위한 최근 7일 데이터
+  int _averageKcal = 0;
+  int _recordedDays = 0;
 
   @override
   void initState() {
     super.initState();
     _prepareChartData();
-    _prepareLast7DaysListData(); // 하단 리스트 데이터 준비
+    _prepareLast7DaysListData();
+  }
+
+  @override
+  void didUpdateWidget(ReportScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.history != widget.history || oldWidget.targetKcal != widget.targetKcal) {
+      _prepareChartData();
+      _prepareLast7DaysListData();
+    }
   }
 
   // 섭취 칼로리 목록 팝업 다이얼로그 (재사용)
@@ -91,7 +102,9 @@ class _ReportScreenState extends State<ReportScreen> {
       datesInRange.add(startDate.add(Duration(days: i)));
     }
 
-    int currentMaxKcal = widget.targetKcal; 
+    int currentMaxKcal = widget.targetKcal;
+    int totalKcalSum = 0;
+    int recordedDaysCount = 0;
 
     for (int i = 0; i < datesInRange.length; i++) {
       DateTime date = datesInRange[i];
@@ -106,13 +119,17 @@ class _ReportScreenState extends State<ReportScreen> {
       _dailyCaloriesMap[dateKey] = total;
       _spots.add(FlSpot(i.toDouble(), total.toDouble()));
 
-      if (total > currentMaxKcal) {
-        currentMaxKcal = total;
+      if (total > currentMaxKcal) currentMaxKcal = total;
+      if (dailyFoods.isNotEmpty) {
+        totalKcalSum += total;
+        recordedDaysCount++;
       }
     }
 
     setState(() {
       _maxKcalValue = currentMaxKcal;
+      _averageKcal = recordedDaysCount > 0 ? (totalKcalSum / recordedDaysCount).round() : 0;
+      _recordedDays = recordedDaysCount;
     });
   }
 
@@ -157,9 +174,57 @@ class _ReportScreenState extends State<ReportScreen> {
                 foregroundColor: Colors.green,
               ),
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('일 평균 섭취', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                        const SizedBox(height: 4),
+                        Text(
+                          _recordedDays > 0 ? '$_averageKcal kcal' : '기록 없음',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('기록한 날', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$_recordedDays일',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
             Text(
-              '${_selectedRange}간 칼로리 섭취량 추이',
+              '$_selectedRange간 칼로리 섭취량 추이',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
@@ -233,7 +298,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         isCurved: true,
                         gradient: LinearGradient(
                           colors: [
-                            Colors.green.withOpacity(0.5),
+                            Colors.green.withValues(alpha: 0.5),
                             Colors.green,
                           ],
                         ),
@@ -244,8 +309,8 @@ class _ReportScreenState extends State<ReportScreen> {
                           show: true,
                           gradient: LinearGradient(
                             colors: [
-                              Colors.green.withOpacity(0.3),
-                              Colors.green.withOpacity(0),
+                              Colors.green.withValues(alpha: 0.3),
+                              Colors.green.withValues(alpha: 0),
                             ],
                           ),
                         ),
@@ -253,7 +318,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       LineChartBarData(
                         spots: [FlSpot(0, widget.targetKcal.toDouble()), FlSpot((_graphDateKeys.length - 1).toDouble(), widget.targetKcal.toDouble())],
                         isCurved: false,
-                        color: Colors.redAccent.withOpacity(0.7),
+                        color: Colors.redAccent.withValues(alpha: 0.7),
                         barWidth: 1,
                         dotData: const FlDotData(show: false),
                         dashArray: [5, 5],

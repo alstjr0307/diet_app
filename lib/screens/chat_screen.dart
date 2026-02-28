@@ -55,7 +55,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final model = GenerativeModel(model: 'gemini-pro', apiKey: widget.apiKey);
+      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: widget.apiKey);
 
       String contextPrompt = "";
       contextPrompt +=
