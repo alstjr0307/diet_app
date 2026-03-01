@@ -3,18 +3,24 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image_picker/image_picker.dart';
 import 'screens/settings_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/report_screen.dart';
 import 'screens/meal_plan_screen.dart';
+import 'screens/onboarding_screen.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  runApp(const DietApp());
+  final prefs = await SharedPreferences.getInstance();
+  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  runApp(DietApp(showOnboarding: !onboardingComplete));
 }
 
 class DietApp extends StatelessWidget {
-  const DietApp({super.key});
+  final bool showOnboarding;
+  const DietApp({super.key, required this.showOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +30,11 @@ class DietApp extends StatelessWidget {
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const DietScreen(),
+      initialRoute: showOnboarding ? '/onboarding' : '/home',
+      routes: {
+        '/onboarding': (_) => const OnboardingScreen(),
+        '/home': (_) => const DietScreen(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
@@ -45,7 +55,6 @@ class _DietScreenState extends State<DietScreen> {
 
   bool _isLoading = false;
   String _errorMessage = "";
-  bool _isNightSnack = false;
 
   int _totalKcal = 0;
   int _targetKcal = 2400;
@@ -183,7 +192,7 @@ class _DietScreenState extends State<DietScreen> {
     });
 
     try {
-      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
+      final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: apiKey);
 
       final prompt =
           '''
@@ -212,7 +221,7 @@ class _DietScreenState extends State<DietScreen> {
         }
 
         for (var food in newFoods) {
-          food['isNightSnack'] = _isNightSnack;
+          food['isNightSnack'] = false;
         }
 
         List<dynamic> updatedList = List.from(_currentFoods);
@@ -221,13 +230,103 @@ class _DietScreenState extends State<DietScreen> {
 
         _calculateTotal();
         _controller.clear();
-        _isNightSnack = false;
         _saveData();
       });
     } catch (e) {
       setState(() {
         _errorMessage =
             "분석 중 오류가 발생했어요. API 키, 네트워크 연결 또는 모델 응답을 확인해주세요! 오류: $e";
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _analyzeDietFromImage() async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final XFile? pickedFile = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = "";
+    });
+
+    try {
+      final imageBytes = await pickedFile.readAsBytes();
+      final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: apiKey);
+
+      const prompt = '''
+너는 영양 분석 AI야. 이 음식 사진을 보고 어떤 음식인지 파악해서,
+칼로리와 영양성분을 무조건 아래 JSON 형식으로만 답해. 다른 말은 절대 하지 마.
+만약 음식을 찾을 수 없거나 분석이 불가능하면 빈 리스트 []만 반환해.
+형식: [{"food": "이름", "amount": "양", "kcal": 숫자, "carbs": 숫자, "protein": 숫자, "fat": 숫자}]
+''';
+
+      final response = await model.generateContent([
+        Content.multi([
+          TextPart(prompt),
+          DataPart('image/jpeg', imageBytes),
+        ]),
+      ]);
+
+      String cleanText = response.text ?? "[]";
+      cleanText = cleanText
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+
+      List<dynamic> newFoods = jsonDecode(cleanText);
+
+      setState(() {
+        if (newFoods.isEmpty) {
+          _errorMessage = "음식을 인식하지 못했습니다. 다른 사진을 시도해보세요!";
+          return;
+        }
+
+        for (var food in newFoods) {
+          food['isNightSnack'] = false;
+        }
+
+        List<dynamic> updatedList = List.from(_currentFoods);
+        updatedList.addAll(newFoods);
+        _history[_dateKey] = updatedList;
+
+        _calculateTotal();
+        _saveData();
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = "사진 분석 중 오류가 발생했어요: $e";
       });
     } finally {
       setState(() {
@@ -253,6 +352,24 @@ class _DietScreenState extends State<DietScreen> {
     );
   }
 
+  Widget _nutritionChip(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$label $value',
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   void _navigateToSettings() async {
     await Navigator.push(
       context,
@@ -271,131 +388,185 @@ class _DietScreenState extends State<DietScreen> {
 
   Widget _buildHomeTab() {
     double progress = _targetKcal > 0 ? _totalKcal / _targetKcal : 0.0;
-    if (progress > 1.0) progress = 1.0;
+    final double progressClamped = progress.clamp(0.0, 1.0);
+    final int progressPct = _targetKcal > 0
+        ? (_totalKcal / _targetKcal * 100).round()
+        : 0;
 
-    String todayStr =
+    final String todayStr =
         "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
-    String weightChangeText = _estimatedWeightChange > 0
+    final String weightChangeText = _estimatedWeightChange > 0
         ? '+${_estimatedWeightChange.toStringAsFixed(2)} kg 예상'
         : '${_estimatedWeightChange.toStringAsFixed(2)} kg 예상';
-    Color weightChangeColor =
-        _estimatedWeightChange > 0 ? Colors.red : Colors.blueAccent;
+    final Color weightChangeColor =
+        _estimatedWeightChange > 0 ? Colors.redAccent : Colors.blueAccent;
+    final Color kcalColor =
+        _totalKcal > _targetKcal ? Colors.redAccent : Colors.green;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.green),
-                  onPressed: () {
-                    setState(() {
-                      _selectedDate =
-                          _selectedDate.subtract(const Duration(days: 1));
-                      _calculateTotal();
-                    });
-                  },
-                ),
-                GestureDetector(
-                  onTap: () => _selectDate(context),
-                  child: Text(
-                    _dateKey == todayStr ? "오늘 ($_dateKey)" : _dateKey,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
+          // 날짜 네비게이터
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.green),
+                onPressed: () => setState(() {
+                  _selectedDate =
+                      _selectedDate.subtract(const Duration(days: 1));
+                  _calculateTotal();
+                }),
+              ),
+              GestureDetector(
+                onTap: () => _selectDate(context),
+                child: Text(
+                  _dateKey == todayStr ? "오늘 ($_dateKey)" : _dateKey,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right, color: Colors.green),
-                  onPressed: () {
-                    setState(() {
-                      _selectedDate =
-                          _selectedDate.add(const Duration(days: 1));
-                      _calculateTotal();
-                    });
-                  },
-                ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, color: Colors.green),
+                onPressed: () => setState(() {
+                  _selectedDate = _selectedDate.add(const Duration(days: 1));
+                  _calculateTotal();
+                }),
+              ),
+            ],
           ),
+          const SizedBox(height: 4),
 
+          // 칼로리 요약 카드 (원형 프로그레스)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  blurRadius: 10,
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "섭취량 / 목표량",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "$_totalKcal / $_targetKcal kcal",
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
+                    // 좌측: 숫자 정보
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '오늘 섭취',
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey[500]),
+                          ),
+                          const SizedBox(height: 2),
+                          RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '$_totalKcal',
+                                  style: TextStyle(
+                                    fontSize: 38,
+                                    fontWeight: FontWeight.bold,
+                                    color: kcalColor,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' kcal',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '목표 $_targetKcal kcal',
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey[500]),
+                          ),
+                          if (_currentFoods.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: weightChangeColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                weightChangeText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: weightChangeColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
+                    ),
+                    // 우측: 원형 프로그레스 링
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 92,
+                          height: 92,
+                          child: CircularProgressIndicator(
+                            value: progressClamped,
+                            strokeWidth: 9,
+                            backgroundColor: Colors.grey[200],
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(kcalColor),
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$progressPct%',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: kcalColor,
+                              ),
+                            ),
+                            Text(
+                              '달성',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                if (_currentFoods.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "예상 체중 변화 (일)",
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        weightChangeText,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: weightChangeColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 12,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _totalKcal > _targetKcal ? Colors.red : Colors.green,
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 16),
+                // 영양소 요약
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildNutrient('총 탄수화물', '$_totalCarbs g', Colors.orange),
-                    _buildNutrient('총 단백질', '$_totalProtein g', Colors.blueAccent),
-                    _buildNutrient('총 지방', '$_totalFat g', Colors.purpleAccent),
+                    _buildNutrient('탄수화물', '$_totalCarbs g', Colors.orange),
+                    Container(width: 1, height: 32, color: Colors.grey[200]),
+                    _buildNutrient('단백질', '$_totalProtein g', Colors.blueAccent),
+                    Container(width: 1, height: 32, color: Colors.grey[200]),
+                    _buildNutrient('지방', '$_totalFat g', Colors.purpleAccent),
                   ],
                 ),
               ],
@@ -403,6 +574,7 @@ class _DietScreenState extends State<DietScreen> {
           ),
           const SizedBox(height: 20),
 
+          // 음식 입력 영역
           TextField(
             controller: _controller,
             decoration: InputDecoration(
@@ -410,73 +582,141 @@ class _DietScreenState extends State<DietScreen> {
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
-              prefixIcon: const Icon(Icons.restaurant_menu, color: Colors.green),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide:
+                    const BorderSide(color: Colors.green, width: 1.5),
+              ),
+              prefixIcon:
+                  const Icon(Icons.restaurant_menu, color: Colors.green),
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const Text(
-                  '🌙 야식 여부',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                Switch(
-                  value: _isNightSnack,
-                  onChanged: (value) => setState(() => _isNightSnack = value),
-                  activeThumbColor: Colors.orangeAccent,
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.green, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: _isLoading ? null : _analyzeDietFromImage,
+                    icon: const Icon(Icons.camera_alt, color: Colors.green),
+                    label: const Text(
+                      '사진으로 추가',
+                      style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
                 ),
               ),
-              onPressed: _isLoading ? null : analyzeDiet,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text(
-                      '음식 추가하기 ➕',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-            ),
+                    onPressed: _isLoading ? null : analyzeDiet,
+                    icon: _isLoading
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add),
+                    label: const Text(
+                      '직접 입력',
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+
+          if (_errorMessage.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline,
+                      color: Colors.redAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_errorMessage,
+                        style: const TextStyle(
+                            color: Colors.redAccent, fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 16),
 
-          if (_errorMessage.isNotEmpty)
-            Text(_errorMessage, style: const TextStyle(color: Colors.red)),
-
           if (_currentFoods.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36),
               child: Center(
-                child: Text(
-                  "이 날의 식단 기록이 없습니다.",
-                  style: TextStyle(color: Colors.grey),
+                child: Column(
+                  children: [
+                    Icon(Icons.restaurant,
+                        size: 60, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text(
+                      '이 날의 식단 기록이 없습니다.',
+                      style: TextStyle(
+                          color: Colors.grey[500], fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '위에서 먹은 음식을 입력해보세요',
+                      style: TextStyle(
+                          color: Colors.grey[400], fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
             )
-          else
+          else ...[
+            Text(
+              '오늘 먹은 음식',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 10),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -484,18 +724,20 @@ class _DietScreenState extends State<DietScreen> {
               itemBuilder: (context, index) {
                 final reversedList = _currentFoods.reversed.toList();
                 final item = reversedList[index];
+                final bool isNight = item["isNightSnack"] == true;
                 return Dismissible(
-                  key: Key('food_${_dateKey}_$index'),
+                  key: ObjectKey(item),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(right: 22),
+                    margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
                       color: Colors.redAccent,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.delete, color: Colors.white),
+                    child: const Icon(Icons.delete_outline,
+                        color: Colors.white, size: 26),
                   ),
                   onDismissed: (_) {
                     setState(() {
@@ -507,83 +749,120 @@ class _DietScreenState extends State<DietScreen> {
                     });
                   },
                   child: Card(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: const EdgeInsets.only(bottom: 10),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Row(
+                    elevation: 1.5,
+                    shadowColor: Colors.grey.withValues(alpha: 0.2),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              width: 4,
+                              color:
+                                  isNight ? Colors.orange : Colors.green,
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 12, 14, 12),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
-                                    Flexible(
-                                      child: Text(
-                                        '🍽️ ${item["food"]}',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (item["isNightSnack"] == true) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orangeAccent,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: const Text(
-                                          '야식',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item["food"],
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                        if (isNight) ...[
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              '야식',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.redAccent
+                                                .withValues(alpha: 0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '${item["kcal"]} kcal',
+                                            style: const TextStyle(
+                                              color: Colors.redAccent,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '${item["amount"]}',
+                                          style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        _nutritionChip('탄',
+                                            '${item["carbs"]}g', Colors.orange),
+                                        const SizedBox(width: 4),
+                                        _nutritionChip('단',
+                                            '${item["protein"]}g',
+                                            Colors.blueAccent),
+                                        const SizedBox(width: 4),
+                                        _nutritionChip('지',
+                                            '${item["fat"]}g',
+                                            Colors.purpleAccent),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-                              Text(
-                                '${item["amount"]}',
-                                style: TextStyle(
-                                    fontSize: 14, color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 20, thickness: 1),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _buildNutrient(
-                                  '칼로리', '${item["kcal"]} kcal', Colors.redAccent),
-                              _buildNutrient(
-                                  '탄수화물', '${item["carbs"]} g', Colors.orange),
-                              _buildNutrient(
-                                  '단백질', '${item["protein"]} g', Colors.blueAccent),
-                              _buildNutrient(
-                                  '지방', '${item["fat"]} g', Colors.purpleAccent),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 );
               },
             ),
+          ],
         ],
       ),
     );
@@ -592,21 +871,23 @@ class _DietScreenState extends State<DietScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'AI 다이어트 코치 🥗',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _navigateToSettings,
-          ),
-        ],
-      ),
+      appBar: _currentTabIndex == 0
+          ? AppBar(
+              title: const Text(
+                'AI 다이어트 코치 🥗',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: _navigateToSettings,
+                ),
+              ],
+            )
+          : null,
       body: IndexedStack(
         index: _currentTabIndex,
         children: [

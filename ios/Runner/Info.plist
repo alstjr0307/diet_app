@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>음식 사진을 촬영하여 칼로리를 분석합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>갤러리에서 음식 사진을 선택하여 칼로리를 분석합니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

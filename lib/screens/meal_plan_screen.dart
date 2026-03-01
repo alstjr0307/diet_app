@@ -39,7 +39,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     });
 
     try {
-      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: widget.apiKey);
+      final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
 
       Map<String, int> foodFrequency = {};
       widget.history.forEach((date, foods) {
@@ -241,11 +241,13 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'AI 맞춤 식단 추천',
+          'AI 식단 추천 ✨',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
