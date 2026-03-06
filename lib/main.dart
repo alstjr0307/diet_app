@@ -1,20 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'screens/settings_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/report_screen.dart';
 import 'screens/meal_plan_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/notification_settings_screen.dart';
+import 'notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
-  final prefs = await SharedPreferences.getInstance();
-  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  bool onboardingComplete = false; // Default value
+
+  try {
+    await dotenv.load(fileName: '.env');
+    await MobileAds.instance.initialize();
+    await NotificationService.init();
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notificationEnabled') ?? true) {
+      await NotificationService.scheduleMealReminders(
+        lunchHour: prefs.getInt('lunchHour') ?? 12,
+        lunchMinute: prefs.getInt('lunchMinute') ?? 0,
+        dinnerHour: prefs.getInt('dinnerHour') ?? 19,
+        dinnerMinute: prefs.getInt('dinnerMinute') ?? 0,
+      );
+    }
+    onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  } catch (e) {
+    if (kDebugMode) {
+      print('Error during app initialization: $e');
+    }
+    // In case of error, we proceed with the default value for onboardingComplete,
+    // which will show the onboarding screen. This is a safe fallback.
+  }
+
   runApp(DietApp(showOnboarding: !onboardingComplete));
 }
 
@@ -72,6 +97,13 @@ class _DietScreenState extends State<DietScreen> {
   double _activityLevel = 1.2;
   int _currentTabIndex = 0;
 
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
+
+  static final String _bannerAdUnitId = kDebugMode
+      ? 'ca-app-pub-3940256099942544/6300978111'  // 테스트 ID
+      : 'ca-app-pub-6925657557995580/5374344359'; // 실제 ID
+
   final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 
   String get _dateKey =>
@@ -82,6 +114,38 @@ class _DietScreenState extends State<DietScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bannerAd == null && !_isBannerAdLoaded) {
+      _loadBannerAd(context);
+    }
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadBannerAd(BuildContext context) async {
+    final width = MediaQuery.of(context).size.width.truncate();
+    final adSize = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (adSize == null) return;
+    _bannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      size: adSize,
+      request: const AdRequest(nonPersonalizedAds: false),
+      listener: BannerAdListener(
+        onAdLoaded: (_) => setState(() => _isBannerAdLoaded = true),
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+        },
+      ),
+    )..load();
   }
 
   Future<void> _loadData() async {
@@ -683,6 +747,14 @@ class _DietScreenState extends State<DietScreen> {
 
           const SizedBox(height: 16),
 
+          if (_isBannerAdLoaded && _bannerAd != null)
+            SizedBox(
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+
+          const SizedBox(height: 16),
+
           if (_currentFoods.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 36),
@@ -882,7 +954,14 @@ class _DietScreenState extends State<DietScreen> {
               elevation: 0,
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.settings),
+                  icon: const Icon(Icons.notifications_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.person),
                   onPressed: _navigateToSettings,
                 ),
               ],
@@ -922,7 +1001,7 @@ class _DietScreenState extends State<DietScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: '채팅'),
+              icon: Icon(Icons.chat_bubble_outline), label: 'AI코치'),
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: '리포트'),
           BottomNavigationBarItem(
               icon: Icon(Icons.restaurant_menu_outlined), label: '식단추천'),

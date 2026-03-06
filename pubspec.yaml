@@ -2,7 +2,7 @@ name: ai_diet_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+4
 
 environment:
   sdk: ^3.0.0
@@ -17,6 +17,9 @@ dependencies:
   fl_chart: ^0.68.0 # 🌟 fl_chart 패키지 추가
   flutter_dotenv: ^5.2.1
   image_picker: ^1.1.2
+  google_mobile_ads: ^5.1.0
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_test:

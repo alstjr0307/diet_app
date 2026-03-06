@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub get)",
+      "Bash(dart run flutter_launcher_icons)",
+      "Bash(flutter build apk --release)",
+      "Bash(keytool -genkey -v -keystore upload-keystore.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -dname \"CN=AI Diet App, OU=Dev, O=AIDiet, L=Seoul, S=Seoul, C=KR\" -storepass dietapp123! -keypass dietapp123!)",
+      "Bash(flutter doctor -v)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool\" -genkey -v -keystore upload-keystore.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -dname \"CN=AI Diet App, OU=Dev, O=AIDiet, L=Seoul, S=Seoul, C=KR\" -storepass dietapp123! -keypass dietapp123!)",
+      "Bash(python -c \"from PIL import Image; print\\(''PIL ok''\\)\")",
+      "Bash(python make_icon.py)",
+      "Read(//temp/**)",
+      "Read(//c/Users/alswp/Downloads/**)",
+      "Bash(flutter pub run flutter_launcher_icons)",
+      "Bash(keytool -genkey -v -keystore \"c:/Users/alswp/Desktop/ai_diet_app/android/app/upload-keystore.jks\" -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"dietapp123!\" -keypass \"dietapp123!\" -dname \"CN=AI Diet Coach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\")",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool\" -genkey -v -keystore \"c:/Users/alswp/Desktop/ai_diet_app/android/app/upload-keystore.jks\" -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"dietapp123!\" -keypass \"dietapp123!\" -dname \"CN=AI Diet Coach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\")",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool\" -genkey -v -keystore \"c:/Users/alswp/Desktop/ai_diet_app/android/app/upload-keystore.jks\" -storetype PKCS12 -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"dietapp123!\" -keypass \"dietapp123!\" -dname \"CN=AI Diet Coach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\")",
+      "Bash(cmd.exe /c '\"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool\"\" -genkey -v -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"\"dietapp123!\"\" -keypass \"\"dietapp123!\"\" -dname \"\"CN=AI Diet Coach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\"\"')",
+      "Bash(powershell.exe -Command '& \"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\"\" -genkey -v -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"\"dietapp123!\"\" -keypass \"\"dietapp123!\"\" -dname \"\"CN=AIDietCoach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\"\"')",
+      "Bash(powershell.exe -Command \"Test-Path ''C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks''\")",
+      "Bash(powershell.exe -Command '& \"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\"\" -list -v -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -storepass \"\"dietapp123!\"\" -alias upload')",
+      "Bash(powershell.exe -Command '& \"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\"\" -list -v -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -storepass \"\"dietapp123!\"\" 2>&1')",
+      "Bash(powershell.exe -Command '& \"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\"\" -genkeypair -v -storetype JKS -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"\"dietapp123!\"\" -keypass \"\"dietapp123!\"\" -dname \"\"CN=AIDietCoach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\"\"')",
+      "Bash(flutter build appbundle --release)",
+      "Bash(powershell.exe -Command '& \"\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\"\" -genkeypair -v -storetype JKS -keystore \"\"C:\\\\Users\\\\alswp\\\\Desktop\\\\ai_diet_app\\\\android\\\\app\\\\upload-keystore.jks\"\" -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass \"\"dietapp2024\"\" -keypass \"\"dietapp2024\"\" -dname \"\"CN=AIDietCoach, OU=App, O=AIDietCoach, L=Seoul, S=Seoul, C=KR\"\"')",
+      "Bash(python -c \"from PIL import Image; img = Image.open\\(r''C:\\\\Users\\\\alswp\\\\Downloads\\\\Gemini_Generated_Image_wtl4vowtl4vowtl4.png''\\); print\\(img.size, img.mode\\)\")",
+      "Bash(python -c \":*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\alswp\\Desktop\\ai_diet_app\\android\\app"
+    ]
+  }
+}

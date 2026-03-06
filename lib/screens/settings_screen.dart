@@ -58,9 +58,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadActivityLevel() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getDouble('activityLevel') ?? 1.2;
     setState(() {
-      _activityLevel = saved;
+      _activityLevel = prefs.getDouble('activityLevel') ?? 1.2;
       _recalculate();
     });
   }
@@ -122,7 +121,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 신체 정보
             const Text('신체 정보', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 10),
             TextField(
@@ -184,7 +182,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 24),
 
-            // 기초대사량 계산 결과
             const Text('기초대사량 (BMR) 계산', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 10),
             Container(
@@ -267,7 +264,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 24),
 
-            // 목표 칼로리 (직접 수정 가능)
             const Text('목표 칼로리', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 10),
             TextField(

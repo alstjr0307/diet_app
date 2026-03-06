@@ -1,4 +1,4 @@
-package com.example.ai_diet_app
+package com.aidietcoach.app
 
 import io.flutter.embedding.android.FlutterActivity
 
