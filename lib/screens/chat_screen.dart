@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> currentHistory;
@@ -31,6 +36,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, String>> _messages = [];
   bool _isSending = false;
 
+  static const String _chatHistoryKey = 'chat_history';
+
+  RewardedInterstitialAd? _rewardedInterstitialAd;
+  static final String _rewardedInterstitialAdUnitId = kDebugMode
+      ? 'ca-app-pub-3940256099942544/6978759866'
+      : Platform.isIOS
+          ? 'ca-app-pub-6925657557995580/8487516870'
+          : 'ca-app-pub-6925657557995580/6361026920';
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +55,55 @@ class _ChatScreenState extends State<ChatScreen> {
           '키 ${widget.userHeight}cm, ${widget.userAge}세, ${widget.userGender}, '
           '체중 ${widget.currentWeight}kg, 목표 ${widget.targetKcal}kcal 정보를 알고 있어요.',
     });
+    _loadMessages();
+    _loadRewardedInterstitialAd();
+  }
+
+  void _loadRewardedInterstitialAd() {
+    RewardedInterstitialAd.load(
+      adUnitId: _rewardedInterstitialAdUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _rewardedInterstitialAd = ad,
+        onAdFailedToLoad: (_) => _rewardedInterstitialAd = null,
+      ),
+    );
+  }
+
+  void _showRewardedInterstitialAd() {
+    if (_rewardedInterstitialAd == null) return;
+    _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _rewardedInterstitialAd = null;
+        _loadRewardedInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        _rewardedInterstitialAd = null;
+        _loadRewardedInterstitialAd();
+      },
+    );
+    _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {});
+    _rewardedInterstitialAd = null;
+  }
+
+  Future<void> _loadMessages() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_chatHistoryKey);
+    if (saved != null) {
+      final List<dynamic> decoded = jsonDecode(saved);
+      setState(() {
+        _messages.addAll(decoded.map((e) => Map<String, String>.from(e)));
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _saveMessages() async {
+    final prefs = await SharedPreferences.getInstance();
+    // 첫 번째 환영 메시지 제외하고 저장
+    await prefs.setString(_chatHistoryKey, jsonEncode(_messages.skip(1).toList()));
   }
 
   @override
@@ -66,6 +129,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _chatController.dispose();
     _scrollController.dispose();
+    _rewardedInterstitialAd?.dispose();
     super.dispose();
   }
 
@@ -91,6 +155,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _isSending = true;
     });
     _scrollToBottom();
+    _showRewardedInterstitialAd();
 
     try {
       final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
@@ -130,11 +195,13 @@ $contextPrompt
       setState(() {
         _messages.add({'sender': 'AI', 'text': aiResponse});
       });
+      _saveMessages();
       _scrollToBottom();
     } catch (e) {
       setState(() {
         _messages.add({'sender': 'AI', 'text': "오류가 발생했습니다: $e"});
       });
+      _saveMessages();
       _scrollToBottom();
     } finally {
       setState(() {

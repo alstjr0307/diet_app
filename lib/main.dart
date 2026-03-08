@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -99,10 +100,20 @@ class _DietScreenState extends State<DietScreen> {
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+  InterstitialAd? _interstitialAd;
+  int _analysisCount = 0;
 
   static final String _bannerAdUnitId = kDebugMode
       ? 'ca-app-pub-3940256099942544/6300978111'  // 테스트 ID
-      : 'ca-app-pub-6925657557995580/5374344359'; // 실제 ID
+      : Platform.isIOS
+          ? 'ca-app-pub-6925657557995580/3948817704' // iOS 실제 ID
+          : 'ca-app-pub-6925657557995580/5374344359'; // Android 실제 ID
+
+  static final String _interstitialAdUnitId = kDebugMode
+      ? 'ca-app-pub-3940256099942544/1033173712'  // 테스트 ID
+      : Platform.isIOS
+          ? 'ca-app-pub-6925657557995580/1677877582' // iOS 실제 ID
+          : 'ca-app-pub-6925657557995580/3980461503'; // Android 실제 ID
 
   final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 
@@ -114,6 +125,7 @@ class _DietScreenState extends State<DietScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _loadInterstitialAd();
   }
 
   @override
@@ -127,7 +139,43 @@ class _DietScreenState extends State<DietScreen> {
   @override
   void dispose() {
     _bannerAd?.dispose();
+    _interstitialAd?.dispose();
     super.dispose();
+  }
+
+  void _loadInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: _interstitialAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitialAd = ad;
+          _interstitialAd!.setImmersiveMode(true);
+        },
+        onAdFailedToLoad: (_) {
+          _interstitialAd = null;
+        },
+      ),
+    );
+  }
+
+  void _showInterstitialAdIfNeeded() {
+    _analysisCount++;
+    if (_analysisCount % 3 == 0 && _interstitialAd != null) {
+      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _interstitialAd = null;
+          _loadInterstitialAd();
+        },
+        onAdFailedToShowFullScreenContent: (ad, _) {
+          ad.dispose();
+          _interstitialAd = null;
+          _loadInterstitialAd();
+        },
+      );
+      _interstitialAd!.show();
+    }
   }
 
   Future<void> _loadBannerAd(BuildContext context) async {
@@ -296,6 +344,7 @@ class _DietScreenState extends State<DietScreen> {
         _controller.clear();
         _saveData();
       });
+      _showInterstitialAdIfNeeded();
     } catch (e) {
       setState(() {
         _errorMessage =
@@ -388,6 +437,7 @@ class _DietScreenState extends State<DietScreen> {
         _calculateTotal();
         _saveData();
       });
+      _showInterstitialAdIfNeeded();
     } catch (e) {
       setState(() {
         _errorMessage = "사진 분석 중 오류가 발생했어요: $e";

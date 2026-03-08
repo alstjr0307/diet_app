@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'dart:convert';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class MealPlanScreen extends StatefulWidget {
   final Map<String, dynamic> history;
@@ -31,12 +34,61 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
   bool _isLoadingPlan = false;
   String _planErrorMessage = "";
 
+  RewardedInterstitialAd? _rewardedInterstitialAd;
+  static final String _adUnitId = kDebugMode
+      ? 'ca-app-pub-3940256099942544/6978759866'
+      : Platform.isIOS
+          ? 'ca-app-pub-6925657557995580/1596114971'
+          : 'ca-app-pub-6925657557995580/5598609591';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewardedInterstitialAd();
+  }
+
+  @override
+  void dispose() {
+    _rewardedInterstitialAd?.dispose();
+    super.dispose();
+  }
+
+  void _loadRewardedInterstitialAd() {
+    RewardedInterstitialAd.load(
+      adUnitId: _adUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _rewardedInterstitialAd = ad,
+        onAdFailedToLoad: (_) => _rewardedInterstitialAd = null,
+      ),
+    );
+  }
+
+  void _showRewardedInterstitialAd() {
+    if (_rewardedInterstitialAd == null) return;
+    _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _rewardedInterstitialAd = null;
+        _loadRewardedInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        _rewardedInterstitialAd = null;
+        _loadRewardedInterstitialAd();
+      },
+    );
+    _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {});
+    _rewardedInterstitialAd = null;
+  }
+
   Future<void> _generateMealPlan() async {
     setState(() {
       _isLoadingPlan = true;
       _planErrorMessage = "";
       _mealPlan = null;
     });
+    _showRewardedInterstitialAd();
 
     try {
       final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
