@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,23 +71,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _showRewardedInterstitialAd() {
-    if (_rewardedInterstitialAd == null) return;
-    _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _rewardedInterstitialAd = null;
-        _loadRewardedInterstitialAd();
-      },
-      onAdFailedToShowFullScreenContent: (ad, _) {
-        ad.dispose();
-        _rewardedInterstitialAd = null;
-        _loadRewardedInterstitialAd();
-      },
-    );
-    _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {});
-    _rewardedInterstitialAd = null;
-  }
 
   Future<void> _loadMessages() async {
     final prefs = await SharedPreferences.getInstance();
@@ -149,14 +133,73 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_chatController.text.trim().isEmpty || _isSending) return;
 
     final userMessage = _chatController.text.trim();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('광고 시청 안내', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('AI 코치에게 질문하려면\n짧은 광고를 시청해야 합니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('광고 보기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() {
       _messages.add({'sender': 'User', 'text': userMessage});
       _chatController.clear();
       _isSending = true;
     });
     _scrollToBottom();
-    _showRewardedInterstitialAd();
 
+    if (_rewardedInterstitialAd != null) {
+      bool messageSent = false;
+      _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!messageSent) {
+            messageSent = true;
+            _doSendMessage(userMessage);
+          }
+        },
+        onAdFailedToShowFullScreenContent: (ad, _) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!messageSent) {
+            messageSent = true;
+            _doSendMessage(userMessage);
+          }
+        },
+      );
+      _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {
+        messageSent = true;
+        _doSendMessage(userMessage);
+      });
+      _rewardedInterstitialAd = null;
+    } else {
+      _doSendMessage(userMessage);
+    }
+  }
+
+  Future<void> _doSendMessage(String userMessage) async {
     try {
       final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
 
@@ -251,14 +294,24 @@ $contextPrompt
                   ),
                 ],
               ),
-              child: Text(
-                message['text']!,
-                style: TextStyle(
-                  color: isUser ? Colors.white : Colors.black87,
-                  fontSize: 15,
-                  height: 1.4,
-                ),
-              ),
+              child: isUser
+                  ? Text(
+                      message['text']!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    )
+                  : MarkdownBody(
+                      data: message['text']!,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(color: Colors.black87, fontSize: 15, height: 1.5),
+                        strong: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.bold),
+                        h3: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.bold),
+                        listBullet: const TextStyle(color: Colors.black87, fontSize: 15),
+                      ),
+                    ),
             ),
           ),
         ],

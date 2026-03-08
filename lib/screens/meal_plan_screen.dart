@@ -64,32 +64,72 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     );
   }
 
-  void _showRewardedInterstitialAd() {
-    if (_rewardedInterstitialAd == null) return;
-    _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _rewardedInterstitialAd = null;
-        _loadRewardedInterstitialAd();
-      },
-      onAdFailedToShowFullScreenContent: (ad, _) {
-        ad.dispose();
-        _rewardedInterstitialAd = null;
-        _loadRewardedInterstitialAd();
-      },
-    );
-    _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {});
-    _rewardedInterstitialAd = null;
-  }
-
   Future<void> _generateMealPlan() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('광고 시청 안내', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('AI 식단 추천을 받으려면\n짧은 광고를 시청해야 합니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('광고 보기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() {
       _isLoadingPlan = true;
       _planErrorMessage = "";
       _mealPlan = null;
     });
-    _showRewardedInterstitialAd();
 
+    if (_rewardedInterstitialAd != null) {
+      bool planStarted = false;
+      _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!planStarted) {
+            planStarted = true;
+            _doGenerateMealPlan();
+          }
+        },
+        onAdFailedToShowFullScreenContent: (ad, _) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!planStarted) {
+            planStarted = true;
+            _doGenerateMealPlan();
+          }
+        },
+      );
+      _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {
+        planStarted = true;
+        _doGenerateMealPlan();
+      });
+      _rewardedInterstitialAd = null;
+    } else {
+      _doGenerateMealPlan();
+    }
+  }
+
+  Future<void> _doGenerateMealPlan() async {
     try {
       final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
 
