@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI식단관리</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; background: #f9fbe7; color: #333; }
+
+    header {
+      background: #2e7d32;
+      color: white;
+      text-align: center;
+      padding: 60px 20px 40px;
+    }
+    header h1 { font-size: 2.4em; margin-bottom: 10px; }
+    header p { font-size: 1.1em; opacity: 0.9; }
+
+    .badges {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+    .badges a img { height: 48px; }
+
+    .features {
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+    }
+    .feature {
+      background: white;
+      border-radius: 16px;
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    .feature .icon { font-size: 2.4em; margin-bottom: 12px; }
+    .feature h3 { color: #2e7d32; margin-bottom: 8px; font-size: 1.1em; }
+    .feature p { font-size: 0.92em; color: #666; line-height: 1.6; }
+
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: #888;
+      font-size: 0.9em;
+    }
+    footer a { color: #2e7d32; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>AI식단관리</h1>
+    <p>AI가 분석하는 나만의 맞춤 식단 코치</p>
+    <div class="badges">
+      <a href="#"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store"></a>
+      <a href="#"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play"></a>
+    </div>
+  </header>
+
+  <div class="features">
+    <div class="feature">
+      <div class="icon">📸</div>
+      <h3>사진으로 칼로리 분석</h3>
+      <p>음식 사진 한 장으로 AI가 칼로리와 영양소를 자동 분석합니다.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🎯</div>
+      <h3>맞춤 칼로리 목표</h3>
+      <p>키, 체중, 활동량을 입력하면 나에게 맞는 목표 칼로리를 계산합니다.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">💬</div>
+      <h3>AI 코치 채팅</h3>
+      <p>식단과 영양에 대해 AI 코치에게 언제든지 물어보세요.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📊</div>
+      <h3>식단 리포트</h3>
+      <p>7일, 1개월, 3개월 단위로 칼로리 추이를 한눈에 확인합니다.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🥗</div>
+      <h3>식단 추천</h3>
+      <p>목표와 선호도에 맞는 하루 식단을 AI가 직접 추천합니다.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔔</div>
+      <h3>식사 알림</h3>
+      <p>아침, 점심, 저녁 식사 시간에 맞춰 알림을 설정할 수 있습니다.</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 정민석 &nbsp;|&nbsp; <a href="/privacy.html">개인정보처리방침</a> &nbsp;|&nbsp; <a href="/app-ads.txt">app-ads.txt</a></p>
+  </footer>
+
+</body>
+</html>

@@ -17,10 +17,15 @@ import 'notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  bool onboardingComplete = false; // Default value
+  bool onboardingComplete = false;
 
   try {
     await dotenv.load(fileName: '.env');
+  } catch (e) {
+    if (kDebugMode) print('dotenv load error: $e');
+  }
+
+  try {
     await MobileAds.instance.initialize();
     await NotificationService.init();
     final prefs = await SharedPreferences.getInstance();
@@ -34,11 +39,7 @@ void main() async {
     }
     onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
   } catch (e) {
-    if (kDebugMode) {
-      print('Error during app initialization: $e');
-    }
-    // In case of error, we proceed with the default value for onboardingComplete,
-    // which will show the onboarding screen. This is a safe fallback.
+    if (kDebugMode) print('Error during app initialization: $e');
   }
 
   runApp(DietApp(showOnboarding: !onboardingComplete));
