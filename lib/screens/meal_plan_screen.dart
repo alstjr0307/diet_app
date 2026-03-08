@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'dart:convert';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class MealPlanScreen extends StatefulWidget {
   final Map<String, dynamic> history;
@@ -31,13 +34,102 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
   bool _isLoadingPlan = false;
   String _planErrorMessage = "";
 
+  RewardedInterstitialAd? _rewardedInterstitialAd;
+  static final String _adUnitId = kDebugMode
+      ? 'ca-app-pub-3940256099942544/6978759866'
+      : Platform.isIOS
+          ? 'ca-app-pub-6925657557995580/1596114971'
+          : 'ca-app-pub-6925657557995580/5598609591';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewardedInterstitialAd();
+  }
+
+  @override
+  void dispose() {
+    _rewardedInterstitialAd?.dispose();
+    super.dispose();
+  }
+
+  void _loadRewardedInterstitialAd() {
+    RewardedInterstitialAd.load(
+      adUnitId: _adUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _rewardedInterstitialAd = ad,
+        onAdFailedToLoad: (_) => _rewardedInterstitialAd = null,
+      ),
+    );
+  }
+
   Future<void> _generateMealPlan() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('광고 시청 안내', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('AI 식단 추천을 받으려면\n짧은 광고를 시청해야 합니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('광고 보기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() {
       _isLoadingPlan = true;
       _planErrorMessage = "";
       _mealPlan = null;
     });
 
+    if (_rewardedInterstitialAd != null) {
+      bool planStarted = false;
+      _rewardedInterstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!planStarted) {
+            planStarted = true;
+            _doGenerateMealPlan();
+          }
+        },
+        onAdFailedToShowFullScreenContent: (ad, _) {
+          ad.dispose();
+          _rewardedInterstitialAd = null;
+          _loadRewardedInterstitialAd();
+          if (!planStarted) {
+            planStarted = true;
+            _doGenerateMealPlan();
+          }
+        },
+      );
+      _rewardedInterstitialAd!.show(onUserEarnedReward: (_, reward) {
+        planStarted = true;
+        _doGenerateMealPlan();
+      });
+      _rewardedInterstitialAd = null;
+    } else {
+      _doGenerateMealPlan();
+    }
+  }
+
+  Future<void> _doGenerateMealPlan() async {
     try {
       final model = GenerativeModel(model: 'gemini-3-flash-preview', apiKey: widget.apiKey);
 

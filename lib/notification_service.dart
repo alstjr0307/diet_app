@@ -11,13 +11,23 @@ class NotificationService {
     tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
     await _plugin.initialize(initSettings);
 
     await _plugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
   static Future<void> cancelAll() async {
@@ -39,6 +49,11 @@ class NotificationService {
         channelDescription: '점심/저녁 식단 등록 알림',
         importance: Importance.high,
         priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
       ),
     );
 
