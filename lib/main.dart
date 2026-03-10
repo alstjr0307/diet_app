@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,21 @@ void main() async {
   }
 
   try {
+    final prefs = await SharedPreferences.getInstance();
+    onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  } catch (e) {
+    if (kDebugMode) print('Error reading prefs: $e');
+  }
+
+  if (Platform.isIOS) {
+    try {
+      await AppTrackingTransparency.requestTrackingAuthorization();
+    } catch (e) {
+      if (kDebugMode) print('ATT request error: $e');
+    }
+  }
+
+  try {
     await MobileAds.instance.initialize();
     await NotificationService.init();
     final prefs = await SharedPreferences.getInstance();
@@ -37,7 +53,6 @@ void main() async {
         dinnerMinute: prefs.getInt('dinnerMinute') ?? 0,
       );
     }
-    onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
   } catch (e) {
     if (kDebugMode) print('Error during app initialization: $e');
   }

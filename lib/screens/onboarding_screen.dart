@@ -67,13 +67,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _saveAndStart() async {
+    final height = double.tryParse(_heightController.text) ?? 170.0;
+    final weight = double.tryParse(_weightController.text) ?? 70.0;
+    final age = int.tryParse(_ageController.text) ?? 30;
+
+    final double bmr = _selectedGender == '남성'
+        ? (10 * weight) + (6.25 * height) - (5 * age) + 5
+        : (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    final int tdee = (bmr * _activityLevel).round();
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('userHeight', double.tryParse(_heightController.text) ?? 170.0);
-    await prefs.setDouble('currentWeight', double.tryParse(_weightController.text) ?? 70.0);
-    await prefs.setInt('userAge', int.tryParse(_ageController.text) ?? 30);
+    await prefs.setDouble('userHeight', height);
+    await prefs.setDouble('currentWeight', weight);
+    await prefs.setInt('userAge', age);
     await prefs.setString('userGender', _selectedGender);
     await prefs.setDouble('activityLevel', _activityLevel);
-    await prefs.setInt('targetKcal', _calculatedTdee > 0 ? _calculatedTdee : 2000);
+    await prefs.setInt('targetKcal', tdee > 0 ? tdee : 2000);
     await prefs.setBool('onboardingComplete', true);
 
     if (mounted) {
@@ -472,6 +481,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ],
               ),
             ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text(
+              '📌 계산 기준: Mifflin-St Jeor 공식 (Am J Clin Nutr, 1990) 및 활동 계수 (Ainsworth et al., 2000). 이 수치는 참고용이며 개인차가 있을 수 있습니다.',
+              style: TextStyle(fontSize: 10, color: Colors.black45, height: 1.5),
+            ),
+          ),
         ],
       ),
     );

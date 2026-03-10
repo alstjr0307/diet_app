@@ -291,6 +291,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('설정 저장', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
+
+            const SizedBox(height: 32),
+            const Divider(),
+            const SizedBox(height: 16),
+            const Text(
+              '정보 출처 및 계산 방법',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    '기초대사량 (BMR) — Mifflin-St Jeor 공식',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Mifflin MD, St Jeor ST, et al. "A new predictive equation for resting energy expenditure in healthy individuals." Am J Clin Nutr. 1990;51(2):241-247.',
+                    style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '활동 계수 (TDEE)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Ainsworth BE, et al. "Compendium of Physical Activities: an update of activity codes and MET intensities." Med Sci Sports Exerc. 2000;32(9 Suppl):S498-504.',
+                    style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '체중 변화 추정 (7,700 kcal/kg)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Hall KD, et al. "Quantification of the effect of energy imbalance on bodyweight." Lancet. 2011;378(9793):826-837.',
+                    style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '⚠️ 면책 조항',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '이 앱의 칼로리 및 영양 정보는 일반적인 참고용이며, 개인별 의학적 상황에 따라 다를 수 있습니다. 건강 문제가 있거나 특별한 식이 요법이 필요한 경우, 반드시 의사 또는 영양 전문가와 상담하시기 바랍니다.',
+                    style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
